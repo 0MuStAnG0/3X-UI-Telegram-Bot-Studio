@@ -1,0 +1,6 @@
+{
+  "name": "3X-UI Telegram Bot Studio",
+  "description": "مدیریت زیرساخت، شبیه‌سازی رابط کاربری و پیکربندی ربات تلگرامی 3X-UI با Python 3، aiogram 3.x، SQLite بهینه، پروکسی SOCKS5 و سرویس systemd",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
