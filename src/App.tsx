@@ -1,23 +1,50 @@
-import React, { useState } from 'react';
-import {
-  BotConfig,
-  BotSimState,
-  DEFAULT_BOT_CONFIG,
-  createInitialSimState,
-} from './utils/botEngine';
-import { AppTab, TopBar } from './components/TopBar';
-import { BotSimulatorView } from './components/BotSimulatorView';
-import { ConfigBuilderView } from './components/ConfigBuilderView';
-import { CliSystemdView } from './components/CliSystemdView';
-import { CodeExplorerView } from './components/CodeExplorerView';
+import React, { useEffect, useState } from 'react';
+import { WebPanelState, createDefaultPanelState } from './utils/webPanelEngine';
+import { TopBar, WebPanelTab } from './components/TopBar';
+import { ConnectionSettingsView } from './components/ConnectionSettingsView';
+import { InboundsView } from './components/InboundsView';
+import { UsersFinanceView } from './components/UsersFinanceView';
+import { PlansConfigsView } from './components/PlansConfigsView';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<AppTab>('simulator');
-  const [config, setConfig] = useState<BotConfig>(DEFAULT_BOT_CONFIG);
-  const [sim, setSim] = useState<BotSimState>(() => createInitialSimState(DEFAULT_BOT_CONFIG));
+  const [activeTab, setActiveTab] = useState<WebPanelTab>('connections');
+  const [panelState, setPanelState] = useState<WebPanelState>(() => createDefaultPanelState());
+  const [saving, setSaving] = useState(false);
+  const [savedNotice, setSavedNotice] = useState(false);
 
-  const handleDownloadBundle = () => {
-    window.location.assign('/api/download-bundle');
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/panel-state')
+      .then((res) => res.json())
+      .then((data: { ok: boolean; state?: WebPanelState }) => {
+        if (mounted && data.ok && data.state) {
+          setPanelState(data.state);
+        }
+      })
+      .catch(() => {
+        // Keep default initial state on transient fetch error
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleSaveState = async (override?: WebPanelState) => {
+    const target = override ?? panelState;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/panel-state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: target }),
+      });
+      if (res.ok) {
+        setSavedNotice(true);
+        setTimeout(() => setSavedNotice(false), 1800);
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -25,42 +52,44 @@ export default function App() {
       <TopBar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        onDownloadBundle={handleDownloadBundle}
+        saving={saving}
+        savedNotice={savedNotice}
+        onSaveAll={() => handleSaveState()}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {activeTab === 'simulator' && (
-          <BotSimulatorView
-            config={config}
-            sim={sim}
-            onChangeSim={setSim}
-            onResetSim={() => setSim(createInitialSimState(config))}
+        {activeTab === 'connections' && (
+          <ConnectionSettingsView
+            state={panelState}
+            onUpdateState={setPanelState}
+            onSaveState={handleSaveState}
           />
         )}
 
-        {activeTab === 'config' && (
-          <ConfigBuilderView config={config} onChangeConfig={setConfig} />
+        {activeTab === 'inbounds' && (
+          <InboundsView
+            state={panelState}
+            onUpdateState={setPanelState}
+            onSaveState={handleSaveState}
+          />
         )}
 
-        {activeTab === 'cli' && (
-          <CliSystemdView config={config} onChangeConfig={setConfig} />
+        {activeTab === 'users' && (
+          <UsersFinanceView
+            state={panelState}
+            onUpdateState={setPanelState}
+            onSaveState={handleSaveState}
+          />
         )}
 
-        {activeTab === 'code' && (
-          <CodeExplorerView onDownloadBundle={handleDownloadBundle} />
+        {activeTab === 'plans_configs' && (
+          <PlansConfigsView
+            state={panelState}
+            onUpdateState={setPanelState}
+            onSaveState={handleSaveState}
+          />
         )}
       </main>
-
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-          <span>
-            زیرساخت پایتون ۳ و aiogram 3.x · دیتابیس SQLite بهینه · اتصال با API Token · پروکسی SOCKS5 · ابزار vpn-bot و systemd
-          </span>
-          <span className="font-mono" dir="ltr">
-            sudo bash install.sh
-          </span>
-        </div>
-      </footer>
     </div>
   );
 }

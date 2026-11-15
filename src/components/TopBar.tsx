@@ -1,35 +1,43 @@
 import React from 'react';
-import { Download } from 'lucide-react';
+import { Check, Save } from 'lucide-react';
 
-export type AppTab = 'simulator' | 'config' | 'cli' | 'code';
+export type WebPanelTab = 'connections' | 'inbounds' | 'users' | 'plans_configs';
 
 interface TopBarProps {
-  activeTab: AppTab;
-  onSelectTab: (tab: AppTab) => void;
-  onDownloadBundle: () => void;
+  activeTab: WebPanelTab;
+  onSelectTab: (tab: WebPanelTab) => void;
+  saving: boolean;
+  savedNotice: boolean;
+  onSaveAll: () => void;
 }
 
-const NAV_ITEMS: { id: AppTab; label: string }[] = [
-  { id: 'simulator', label: 'شبیه‌ساز ربات' },
-  { id: 'config', label: 'پیکربندی و توکن' },
-  { id: 'cli', label: 'سرویس و ابزار CLI' },
-  { id: 'code', label: 'کد پروژه و نصب' },
+const NAV_ITEMS: { id: WebPanelTab; label: string }[] = [
+  { id: 'connections', label: 'اتصال ربات و پنل' },
+  { id: 'inbounds', label: 'مدیریت اینباندها' },
+  { id: 'users', label: 'کاربران و مالی' },
+  { id: 'plans_configs', label: 'پلن‌ها، کانفیگ‌ها و امکانات' },
 ];
 
-export function TopBar({ activeTab, onSelectTab, onDownloadBundle }: TopBarProps) {
+export function TopBar({
+  activeTab,
+  onSelectTab,
+  saving,
+  savedNotice,
+  onSaveAll,
+}: TopBarProps) {
   return (
     <header className="md:sticky md:top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4 sm:gap-8">
         <button
           type="button"
-          onClick={() => onSelectTab('simulator')}
+          onClick={() => onSelectTab('connections')}
           className="text-base sm:text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 rounded"
         >
-          مدیریت ربات 3X-UI
+          وب‌پنل 3X-UI
         </button>
 
         <nav
-          aria-label="ناوبری اصلی"
+          aria-label="ناوبری پنل مدیریت"
           className="hidden md:flex items-center gap-6 overflow-x-auto"
         >
           {NAV_ITEMS.map((item) => {
@@ -54,11 +62,16 @@ export function TopBar({ activeTab, onSelectTab, onDownloadBundle }: TopBarProps
         <div className="flex items-center shrink-0">
           <button
             type="button"
-            onClick={onDownloadBundle}
-            className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
+            onClick={onSaveAll}
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-60 rounded-lg transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
           >
-            <Download className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span>دانلود بسته نصب</span>
+            {savedNotice ? (
+              <Check className="w-4 h-4 shrink-0" aria-hidden="true" />
+            ) : (
+              <Save className="w-4 h-4 shrink-0" aria-hidden="true" />
+            )}
+            <span>{savedNotice ? 'ذخیره شد' : saving ? 'در حال ذخیره...' : 'ذخیره تنظیمات'}</span>
           </button>
         </div>
       </div>

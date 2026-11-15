@@ -19,7 +19,18 @@ CREATE TABLE IF NOT EXISTS users (
     telegram_id INTEGER PRIMARY KEY,
     username    TEXT,
     full_name   TEXT,
+    blocked     INTEGER NOT NULL DEFAULT 0,
     joined_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sales_plans (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    gb         INTEGER NOT NULL,
+    days       INTEGER NOT NULL DEFAULT 30,
+    price      INTEGER NOT NULL,
+    inbound_id INTEGER NOT NULL DEFAULT 1,
+    active     INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS wallets (
@@ -141,6 +152,10 @@ async def init_db(db_path: Optional[str] = None) -> None:
     target = db_path or DB
     async with aiosqlite.connect(target) as db:
         await db.executescript(SCHEMA_SQL)
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
         await db.commit()
     logger.info("DB ready with optimized indexes: %s", target)
 
@@ -439,3 +454,101 @@ async def clear_reminder(telegram_id: int, client_email: str, db_path: Optional[
             (telegram_id, client_email),
         )
         await db.commit()
+
+
+async def is_user_blocked(telegram_id: int, db_path: Optional[str] = None) -> bool:
+    target = db_path or DB
+    async with aiosqlite.connect(target) as db:
+        async with db.execute("SELECT blocked FROM users WHERE telegram_id=?", (telegram_id,)) as cur:
+            row = await cur.fetchone()
+            return bool(row and row[0])
+
+
+async def set_user_blocked(telegram_id: int, blocked: bool, db_path: Optional[str] = None) -> None:
+    target = db_path or DB
+    async with aiosqlite.connect(target) as db:
+        await db.execute("UPDATE users SET blocked=? WHERE telegram_id=?", (1 if blocked else 0, telegram_id))
+        await db.commit()
+
+
+async def list_users_with_stats(db_path: Optional[str] = None) -> List[dict]:
+    target = db_path or DB
+    async with aiosqlite.connect(target) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            """
+            SELECT u.telegram_id, u.username, u.full_name, COALESCE(u.blocked, 0) AS blocked, u.joined_at,
+                   COALESCE(w.balance, 0) AS balance,
+                   (SELECT COUNT(*) FROM orders o WHERE o.telegram_id = u.telegram_id) AS services_count,
+                   (SELECT COUNT(*) FROM referrals r WHERE r.inviter_id = u.telegram_id) AS referral_count
+            FROM users u
+            LEFT JOIN wallets w ON w.telegram_id = u.telegram_id
+            ORDER BY u.joined_at DESC
+            LIMIT 200
+            """
+        )
+        rows = await cur.fetchall()
+        return [dict(r) for r in rows]
+
+
+async def list_all_orders(limit: int = 100, db_path: Optional[str] = None) -> List[dict]:
+    target = db_path or DB
+    async with aiosqlite.connect(target) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            "SELECT id, telegram_id, client_email, gb, amount_paid, order_type, created_at "
+            "FROM orders ORDER BY id DESC LIMIT ?",
+            (limit,),
+        )
+        return [dict(r) for r in await cur.fetchall()]
+
+
+async def delete_order_by_email(client_email: str, db_path: Optional[str] = None) -> None:
+    target = db_path or DB
+    async with aiosqlite.connect(target) as db:
+        await db.execute("DELETE FROM orders WHERE client_email=?", (client_email,))
+        await db.commit()
+
+
+async def list_sales_plans(db_path: Optional[str] = None) -> List[dict]:
+    target = db_path or DB
+    async with aiosqlite.connect(target) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute("SELECT * FROM sales_plans ORDER BY gb ASC")
+        return [dict(r) for r in await cur.fetchall()]
+
+
+async def upsert_sales_plan(
+    plan_id: str,
+    name: str,
+    gb: int,
+    days: int,
+    price: int,
+    inbound_id: int,
+    active: bool = True,
+    db_path: Optional[str] = None,
+) -> None:
+    target = db_path or DB
+    async with aiosqlite.connect(target) as db:
+        await db.execute(
+            "INSERT INTO sales_plans(id, name, gb, days, price, inbound_id, active) VALUES(?,?,?,?,?,?,?) "
+            "ON CONFLICT(id) DO UPDATE SET name=excluded.name, gb=excluded.gb, days=excluded.days, "
+            "price=excluded.price, inbound_id=excluded.inbound_id, active=excluded.active",
+            (plan_id, name, gb, days, price, inbound_id, 1 if active else 0),
+        )
+        await db.commit()
+
+
+async def delete_sales_plan(plan_id: str, db_path: Optional[str] = None) -> None:
+    target = db_path or DB
+    async with aiosqlite.connect(target) as db:
+        await db.execute("DELETE FROM sales_plans WHERE id=?", (plan_id,))
+        await db.commit()
+
+
+async def get_all_settings(db_path: Optional[str] = None) -> dict:
+    target = db_path or DB
+    async with aiosqlite.connect(target) as db:
+        cur = await db.execute("SELECT key, value FROM bot_settings")
+        return {str(k): str(v) for k, v in await cur.fetchall()}
+

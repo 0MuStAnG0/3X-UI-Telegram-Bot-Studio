@@ -107,6 +107,16 @@ class TestSQLiteSchemaAndIndexes(unittest.TestCase):
         plan_pending_text = " ".join(str(row) for row in plan_pending)
         self.assertIn("idx_pending_payments_status_created", plan_pending_text)
 
+    def test_users_blocked_and_sales_plans_schema(self):
+        self.conn.execute("INSERT INTO users(telegram_id, username, full_name) VALUES(123, 'u1', 'User One')")
+        row = self.conn.execute("SELECT blocked FROM users WHERE telegram_id=123").fetchone()
+        self.assertEqual(row[0], 0)
+        self.conn.execute(
+            "INSERT INTO sales_plans(id, name, gb, days, price, inbound_id, active) VALUES('p1', '30G', 30, 30, 225000, 1, 1)"
+        )
+        plan = self.conn.execute("SELECT name, gb, price FROM sales_plans WHERE id='p1'").fetchone()
+        self.assertEqual(plan, ("30G", 30, 225000))
+
 
 class TestPricingLogic(unittest.TestCase):
     def test_tiered_pricing(self):

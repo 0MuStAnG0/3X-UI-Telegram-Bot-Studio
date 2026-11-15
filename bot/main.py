@@ -56,7 +56,7 @@ async def main() -> None:
     async def on_startup() -> None:
         logger.info("3X-UI Telegram Bot started (aiogram 3.x async)")
 
-    web_runner = await start_web_panel()
+    web_runner = await start_web_panel(bot)
     reminder_task = asyncio.create_task(reminder_loop(bot))
     payment_task = asyncio.create_task(payment_reminder_loop(bot))
 
